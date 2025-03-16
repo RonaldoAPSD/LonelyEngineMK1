@@ -1,3 +1,9 @@
+//! Platform-specific audio playback implementation.
+//!
+//! Provides functionality for playing sound effects using native system APIs.
+//! Currently supports WAV file playback on Windows via the Win32 API.
+//! Non-Windows platforms have a stub implementation that returns errors.
+
 use std::io;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
@@ -9,7 +15,29 @@ mod windows_audio {
     use windows::Win32::Foundation::PWSTR;
     
 
-    /// Plays a WAV file asynchronosly on Windows using the PlaySoundW API.
+    /// Plays a WAV file asynchronously using the Windows PlaySoundW API.
+    ///
+    /// # Arguments
+    /// * `file` - Path to the WAV file to play. Must be valid UTF-8.
+    ///
+    /// # Returns
+    /// * `Ok(())` if sound playback started successfully
+    /// * `Err(io::Error)` if playback failed
+    ///
+    /// # Safety
+    /// This function contains unsafe code for Win32 API calls.
+    ///
+    /// # Platform Specific
+    /// Windows only. Requires valid WAV file path.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use lonely_engine::audio;
+    ///
+    /// if let Err(e) = audio::play_sound("sound.wav") {
+    ///     eprintln!("Error playing sound: {}", e);
+    /// }
+    /// ```
     pub fn play_sound(file: &str) -> io::Result<()> {
         // Convert the file path to a wide (UTF-16) string required by PlaySoundW.
         let wide: Vec<u16> = OsStr::new(file)
@@ -17,7 +45,8 @@ mod windows_audio {
             .chain(std::iter::once(0))
             .collect();
 
-        // Call PlaySoundW with the SND_FILENAME and SND_ASYNC flags.
+        // SAFETY: We ensure the wide string is properly null-terminated and
+        // valid for the duration of the PlaySoundW call
         let result = unsafe {
             PlaySoundW(PWSTR(wide.as_ptr() as *mut u16), None, SND_FILENAME as u32 | SND_ASYNC as u32)
         };
@@ -35,7 +64,14 @@ mod windows_audio {
 mod unix_audio {
     use std::io;
 
-    /// Stub implementation for non-Windows platforms.
+    /// Stub implementation for non-Windows platforms
+    ///
+    /// # Platform Specific
+    /// Always returns an error on non-Windows platforms
+    ///
+    /// # Note
+    /// This is a placeholder implementation. Consider using platform-specific
+    /// audio libraries (e.g., ALSA, PulseAudio) for Unix support.
     pub fn play_sound(_file: &str) -> io::Result<()> {
         Err(io::Error::new(io::ErrorKind::Other, "Audio not implement for non-Window platforms"))
     }

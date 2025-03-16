@@ -1,3 +1,8 @@
+//! Platform-specific input handling implementation
+//!
+//! Provides keyboard input processing with:
+//! - Windows implementation using WinAPI
+//! - Unix stub implementation (unimplemented)
 
 #[cfg(windows)]
 mod windows_input {
@@ -6,23 +11,46 @@ mod windows_input {
     use winapi::um::consoleapi::{GetNumberOfConsoleInputEvents, ReadConsoleInputW};
     use winapi::um::wincon::{INPUT_RECORD, KEY_EVENT_RECORD};
 
-    /// Represents a key press.
+    /// Represents a physical keyboard key
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub enum Key {
         Char(char),
+        /// Up arrow key
         Up,
+        /// Down arrow key
         Down,
+        /// Left arrow key
         Left,
+        /// Right arrow key
         Right,
+        /// Space bar
         Space,
+        /// Enter/Return key
         Enter,
+        /// Shift
         Shift,
+        /// Control Key
         Ctrl,
+        /// Escape Key
         Esc,
+        /// Unrecognized Key
         Unknown,
     }
 
-    /// Reads all currently pressed keys
+    /// Reads all currently pressed keys from the input buffer
+    ///
+    /// # Returns
+    /// `HashSet<Key>` containing all currently held keys
+    ///
+    /// # Example
+    /// ```no_run
+    /// use lonely_engine::input::{read_active_keys, Key};
+    ///
+    /// let keys = read_active_keys().unwrap();
+    /// if keys.contains(&Key::Left) {
+    ///     println!("Left arrow held");
+    /// }
+    /// ```
     pub fn read_active_keys() -> io::Result<HashSet<Key>> {
         let mut keys = HashSet::new();
         unsafe {
@@ -54,12 +82,28 @@ mod windows_input {
         Ok(keys)
     }
 
-    /// Reads a key press from stdin.
+    /// Reads a single key press from stdin (blocking)
+    ///
+    /// # Returns
+    /// - `Ok(Key)` on successful read
+    /// - `Err` if no keys pressed or error occurs
+    ///
+    /// # Example
+    /// ```no_run
+    /// use lonely_engine::input::{read_key, Key};
+    ///
+    /// match read_key() {
+    ///     Ok(Key::Char('q')) => println!("Quit requested"),
+    ///     Ok(Key::Esc) => println!("Escape pressed"),
+    ///     _ => {}
+    /// }
+    /// ```
     pub fn read_key() -> io::Result<Key> {
         let keys = read_active_keys()?;
         keys.into_iter().next().ok_or(io::Error::new(io::ErrorKind::WouldBlock, "No input available"))
     }
 
+    /// Converts WinAPI key codes to engine's Key enum
     fn key_code_to_key(key_event: &KEY_EVENT_RECORD) -> io::Result<Key> {
         let virtual_key_code = key_event.wVirtualKeyCode;
         Ok(match virtual_key_code {
@@ -89,7 +133,7 @@ mod windows_input {
 mod unix_input {
     use std::io;
 
-    /// Represents a key press.
+    /// Key representation for non-Windows platforms (unimplemented)
     pub enum Key {
         Char(char),
         Up,
@@ -100,7 +144,17 @@ mod unix_input {
         Unknown,
     }
 
-    /// Give error as read_key is not implemented for other platforms
+    /// Stub implementation for non-Windows platforms
+    ///
+    /// # Note
+    /// Always returns Error on non-Windows systems
+    /// 
+    /// # Example
+    /// ```should_panic
+    /// use lonely_engine::input::read_key;
+    /// 
+    /// let key = read_key().unwrap_err();
+    /// ```
     pub fn read_key() -> io::Result<Key> {
         Err(io::Error::new(io::ErrorKind::Other, "Input not implemented for non-Windows platforms"))
     }

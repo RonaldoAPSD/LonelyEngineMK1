@@ -1,36 +1,70 @@
-//! Central engine class managing game loop and ECS
+//! Core game engine implementation containing the main loop, Object management,
+//! and systems for input processing, rendering, and event handling.
+
 use std::{collections::HashSet, io::Write, time::{Duration, Instant}};
 use crate::{event::{EngineEvent, EventBus}, game_object::GameObject, input, renderer::Renderer};
 use windows::Win32::{Foundation::INVALID_HANDLE_VALUE, System::Console:: {
     GetConsoleMode, GetStdHandle, SetConsoleMode, CONSOLE_MODE, ENABLE_VIRTUAL_TERMINAL_PROCESSING, STD_OUTPUT_HANDLE
 }};
 
+/// Commands that can be issued to advise the engine what to do.
 #[derive(Debug)]
 pub enum EngineCommand {
+    /// Spawn a new game object into the scene
     SpawnObject(GameObject),
+    /// Remove a game object by its index in the objects list
     DespawnObject(usize),
+    /// Move an existing game object by specified delta coordinates
     MoveObject(usize, i32, i32),
+    /// Signal the engine to begin shutdown process
     Quit,
 }
 
+/// Trait for systems that can update game state each frame
 pub trait Updatable {
+    /// Main update method called every frame
+    /// 
+    /// # Arguments
+    /// * `delta_time` - Time since last update in seconds
+    /// * `active_keys` - Set of currently pressed keyboard keys
+    ///
+    /// # Returns
+    /// Vector of engine commands to be processed this frame
     fn update(&mut self, delta_time: f32, active_keys: &HashSet<input::Key>) ->Vec<EngineCommand>;
 }
 
-/// Main engine class
+/// Main game engine managing all game state and systems
 pub struct Engine {
+    /// Engine running state flag
     running: bool,
+    /// Rendering system handle
     pub renderer: Renderer,
+    /// Collection of active game objects
     pub objects: Vec<GameObject>,
+    /// Registered update systems
     updatables: Vec<Box<dyn Updatable>>,
+    /// Command queue for frame processing
     commands: Vec<EngineCommand>,
+    /// Event distribution system
     pub event_bus: EventBus,
-    previous_keys: HashSet<input::Key>, 
+    /// Keyboard state from previous frame
+    previous_keys: HashSet<input::Key>,
+     /// Current keyboard state
     active_keys: HashSet<input::Key>,
 }
 
 impl Engine {
-    /// Initializes engine with specified terminal dimensions
+
+    /// Creates a new engine instance with specified render dimensions
+    ///
+    /// # Arguments
+    /// * `width` - Width of the render surface in characters
+    /// * `height` - Height of the render surface in characters
+    ///
+    /// # Example
+    /// ```
+    /// let mut engine = Engine::new(80, 24);
+    /// ```
     pub fn new(width: usize, height: usize) -> Self {
         Self { 
             running: true,
@@ -44,10 +78,18 @@ impl Engine {
         }
     }
 
+    /// Registers a new updatable system
+    ///
+    /// # Arguments
+    /// * `updatable` - System implementing the Updatable trait
     pub fn add_updatable(&mut self, updatable: impl Updatable + 'static) {
         self.updatables.push(Box::new(updatable));
     }
 
+    /// Main game loop entry point
+    ///
+    /// Handles initialization, runs the game loop at ~30 FPS,
+    /// and performs cleanup when finished
     pub fn run(&mut self) {
         self.init_terminal();
 
@@ -178,6 +220,24 @@ impl Engine {
         let _ = self.renderer.present();
     }
 
+    /// Adds a game object to the engine's object collection
+    /// 
+    /// # Arguments
+    /// * `obj` - The [`GameObject`] to add to the scene
+    /// 
+    /// # Notes
+    /// - The object will be rendered starting on the next frame
+    /// - Object will participate in animation system updates
+    /// - Object index is determined by insertion order
+    /// 
+    /// # Example
+    /// ```
+    /// let mut engine = Engine::new(80, 24);
+    /// let player = GameObject::new(10, 5, '@');
+    /// engine.add_object(player);
+    /// ```
+    /// 
+    /// [`GameObject`]: crate::game_object::GameObject
     pub fn add_object(&mut self, obj: GameObject) {
         self.objects.push(obj);
     }
